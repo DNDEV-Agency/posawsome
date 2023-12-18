@@ -1,53 +1,23 @@
 <template>
   <div>
-    <v-autocomplete
-      dense
-      clearable
-      auto-select-first
-      outlined
-      color="primary"
-      :label="frappe._('Customer')"
-      v-model="customer"
-      :items="customers"
-      item-text="customer_name"
-      item-value="name"
-      background-color="white"
-      :no-data-text="__('Customer not found')"
-      hide-details
-      :filter="customFilter"
-      :disabled="readonly"
-      append-icon="mdi-plus"
-      @click:append="new_customer"
-      prepend-inner-icon="mdi-account-edit"
-      @click:prepend-inner="edit_customer"
-    >
+    <v-autocomplete dense clearable auto-select-first outlined color="primary" :label="frappe._('Customer')"
+      v-model="customer" :items="customers" item-text="customer_name" item-value="name" background-color="white"
+      :no-data-text="__('Customer not found')" hide-details :filter="customFilter" :disabled="readonly"
+      append-icon="mdi-plus" @click:append="new_customer" prepend-inner-icon="mdi-account-edit"
+      @click:prepend-inner="edit_customer">
       <template v-slot:item="data">
         <template>
           <v-list-item-content>
-            <v-list-item-title
-              class="primary--text subtitle-1"
-              v-html="data.item.customer_name"
-            ></v-list-item-title>
-            <v-list-item-subtitle
-              v-if="data.item.customer_name != data.item.name"
-              v-html="`ID: ${data.item.name}`"
-            ></v-list-item-subtitle>
-            <v-list-item-subtitle
-              v-if="data.item.tax_id"
-              v-html="`TAX ID: ${data.item.tax_id}`"
-            ></v-list-item-subtitle>
-            <v-list-item-subtitle
-              v-if="data.item.email_id"
-              v-html="`Email: ${data.item.email_id}`"
-            ></v-list-item-subtitle>
-            <v-list-item-subtitle
-              v-if="data.item.mobile_no"
-              v-html="`Mobile No: ${data.item.mobile_no}`"
-            ></v-list-item-subtitle>
-            <v-list-item-subtitle
-              v-if="data.item.primary_address"
-              v-html="`Primary Address: ${data.item.primary_address}`"
-            ></v-list-item-subtitle>
+            <v-list-item-title class="primary--text subtitle-1" v-html="data.item.customer_name"></v-list-item-title>
+            <v-list-item-subtitle v-if="data.item.customer_name != data.item.name"
+              v-html="`ID: ${data.item.name}`"></v-list-item-subtitle>
+            <v-list-item-subtitle v-if="data.item.tax_id" v-html="`TAX ID: ${data.item.tax_id}`"></v-list-item-subtitle>
+            <v-list-item-subtitle v-if="data.item.email_id"
+              v-html="`Email: ${data.item.email_id}`"></v-list-item-subtitle>
+            <v-list-item-subtitle v-if="data.item.mobile_no"
+              v-html="`Mobile No: ${data.item.mobile_no}`"></v-list-item-subtitle>
+            <v-list-item-subtitle v-if="data.item.primary_address"
+              v-html="`Primary Address: ${data.item.primary_address}`"></v-list-item-subtitle>
           </v-list-item-content>
         </template>
       </template>
@@ -113,10 +83,13 @@ export default {
       const textOne = item.customer_name
         ? item.customer_name.toLowerCase()
         : '';
-      const textTwo = item.tax_id ? item.tax_id.toLowerCase() : '';
-      const textThree = item.email_id ? item.email_id.toLowerCase() : '';
-      const textFour = item.mobile_no ? item.mobile_no.toLowerCase() : '';
-      const textFifth = item.name.toLowerCase();
+
+      const textTwo = item.woocommerce_id ? item.woocommerce_id.toLowerCase() : '';
+      const textThree = item.woocommerce_email ? item.woocommerce_email.toLowerCase() : '';
+      const textFour = item.tax_id ? item.tax_id.toLowerCase() : '';
+      const textFifth = item.email_id ? item.email_id.toLowerCase() : '';
+      const textSixth = item.mobile_no ? item.mobile_no.toLowerCase() : '';
+      const textSeventh = item.name.toLowerCase();
       const searchText = queryText.toLowerCase();
 
       return (
@@ -124,7 +97,9 @@ export default {
         textTwo.indexOf(searchText) > -1 ||
         textThree.indexOf(searchText) > -1 ||
         textFour.indexOf(searchText) > -1 ||
-        textFifth.indexOf(searchText) > -1
+        textFifth.indexOf(searchText) > -1 ||
+        textSixth.indexOf(searchText) > -1 ||
+        textSeventh.indexOf(searchText) > -1
       );
     },
   },

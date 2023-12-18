@@ -705,24 +705,24 @@ export default {
       payload.total_selected_mpesa_payments = flt(
         this.total_selected_mpesa_payments
       );
-
-      frappe.call({
-        method: "posawesome.posawesome.api.payment_entry.process_pos_payment",
-        args: { payload },
-        freeze: true,
-        freeze_message: __("Processing Payment"),
-        callback: function (r) {
-          if (r.message) {
-            frappe.utils.play_sound("submit");
-            vm.clear_all(false);
-            vm.customer_name = customer;
-            vm.get_outstanding_invoices();
-            vm.get_unallocated_payments();
-            vm.set_mpesa_search_params();
-            vm.get_draft_mpesa_payments_register();
-          }
-        },
-      });
+      console.log("payload", payload);
+      // frappe.call({
+      //   method: "posawesome.posawesome.api.payment_entry.process_pos_payment",
+      //   args: { payload },
+      //   freeze: true,
+      //   freeze_message: __("Processing Payment"),
+      //   callback: function (r) {
+      //     if (r.message) {
+      //       frappe.utils.play_sound("submit");
+      //       vm.clear_all(false);
+      //       vm.customer_name = customer;
+      //       vm.get_outstanding_invoices();
+      //       vm.get_unallocated_payments();
+      //       vm.set_mpesa_search_params();
+      //       vm.get_draft_mpesa_payments_register();
+      //     }
+      //   },
+      // });
     },
   },
 

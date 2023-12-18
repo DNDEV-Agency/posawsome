@@ -30,7 +30,7 @@ from posawesome.posawesome.doctype.delivery_charges.delivery_charges import (
     get_applicable_delivery_charges as _get_applicable_delivery_charges,
 )
 from frappe.utils.caching import redis_cache
-
+from posawesome.posawesome.api.payment_entry import process_pos_payment
 
 @frappe.whitelist()
 def get_opening_dialog_data():
@@ -419,7 +419,7 @@ def get_customer_names(pos_profile):
         condition += get_customer_group_condition(pos_profile)
         customers = frappe.db.sql(
             """
-            SELECT name, mobile_no, email_id, tax_id, customer_name, primary_address
+            SELECT name, mobile_no, email_id, tax_id, customer_name, primary_address, woocommerce_email, woocommerce_id
             FROM `tabCustomer`
             WHERE {0}
             ORDER by name
@@ -532,6 +532,131 @@ def update_invoice(data):
 
     invoice_doc.save()
     return invoice_doc
+
+
+@frappe.whitelist()
+def process_payments(invoice, data, payload=None):
+    if not payload:
+        return submit_invoice(invoice, data)
+    if not invoice:
+        return process_pos_payment(payload)
+    payload = json.loads(payload)
+    data = json.loads(data)
+    invoice = json.loads(invoice)
+    invoice_payments = invoice.get("payments")
+    del invoice["payments"]
+    invoice_doc = frappe.get_doc("Sales Invoice", invoice.get("name"))
+    invoice_doc.update(invoice)
+    if invoice.get("posa_delivery_date"):
+        invoice_doc.update_stock = 0
+    mop_cash_list = [
+        i.mode_of_payment
+        for i in invoice_doc.payments
+        if "cash" in i.mode_of_payment.lower() and i.type == "Cash"
+    ]
+    if len(mop_cash_list) > 0:
+        cash_account = get_bank_cash_account(mop_cash_list[0], invoice_doc.company)
+    else:
+        cash_account = {
+            "account": frappe.get_value(
+                "Company", invoice_doc.company, "default_cash_account"
+            )
+        }
+
+    # creating advance payment
+    if data.get("credit_change"):
+        advance_payment_entry = frappe.get_doc(
+            {
+                "doctype": "Payment Entry",
+                "mode_of_payment": "Cash",
+                "paid_to": cash_account["account"],
+                "payment_type": "Receive",
+                "party_type": "Customer",
+                "party": invoice_doc.get("customer"),
+                "paid_amount": invoice_doc.get("credit_change"),
+                "received_amount": invoice_doc.get("credit_change"),
+                "company": invoice_doc.get("company"),
+            }
+        )
+
+        advance_payment_entry.flags.ignore_permissions = True
+        frappe.flags.ignore_account_permission = True
+        advance_payment_entry.save()
+        advance_payment_entry.submit()
+
+    # calculating cash
+    total_cash = 0
+    if data.get("redeemed_customer_credit"):
+        total_cash = invoice_doc.total - float(data.get("redeemed_customer_credit"))
+
+    is_payment_entry = 0
+    if data.get("redeemed_customer_credit"):
+        for row in data.get("customer_credit_dict"):
+            if row["type"] == "Advance" and row["credit_to_redeem"]:
+                advance = frappe.get_doc("Payment Entry", row["credit_origin"])
+
+                advance_payment = {
+                    "reference_type": "Payment Entry",
+                    "reference_name": advance.name,
+                    "remarks": advance.remarks,
+                    "advance_amount": advance.unallocated_amount,
+                    "allocated_amount": row["credit_to_redeem"],
+                }
+
+                invoice_doc.append("advances", advance_payment)
+                invoice_doc.is_pos = 0
+                is_payment_entry = 1
+
+    payments = invoice_doc.payments
+
+    if frappe.get_value("POS Profile", invoice_doc.pos_profile, "posa_auto_set_batch"):
+        set_batch_nos(invoice_doc, "warehouse", throw=True)
+    set_batch_nos_for_bundels(invoice_doc, "warehouse", throw=True)
+    invoice_doc.due_date = data.get("due_date")
+    invoice_doc.flags.ignore_permissions = True
+    frappe.flags.ignore_account_permission = True
+    invoice_doc.posa_is_printed = 1
+    invoice_doc.save()
+    invoice_doc.submit()
+    redeeming_customer_credit(
+        invoice_doc, data, is_payment_entry, total_cash, cash_account, payments
+    )
+
+    # process payments
+    if len(payload.get("selected_invoices", [])) == 0:
+        for pm in invoice_payments:
+            if pm.get("amount", 0) > 0:
+                payload["payment_methods"].append(
+                    {
+                        "mode_of_payment": pm.get("mode_of_payment"),
+                        "amount": pm.get("amount"),
+                    }
+                )
+    
+    for idx, pm in enumerate(payload.get("payment_methods", [])):
+        if pm.get("amount", 0) > 0:
+            payment_method_idx = idx
+            break
+ 
+    total = payload.get("total_selected_invoices", 0) + invoice_doc.grand_total
+    payload["total_selected_invoices"] = total
+    payload["total_payment_methods"] = total
+    payload["payment_methods"][payment_method_idx]["amount"] = total
+    payload["selected_invoices"].append({
+        "name": invoice_doc.name,
+        "customer": invoice_doc.customer,
+        "customer_name": invoice_doc.customer_name,
+        "outstanding_amount": invoice_doc.outstanding_amount,
+        "grand_total": invoice_doc.grand_total,
+        "due_date": invoice_doc.due_date,
+        "posting_date": invoice_doc.posting_date,
+        "currency": invoice_doc.currency,
+        "pos_profile": invoice_doc.pos_profile,
+    })
+
+    process_pos_payment_result = process_pos_payment(json.dumps(payload))
+
+    return {"name": invoice_doc.name, "status": invoice_doc.docstatus, **process_pos_payment_result}
 
 
 @frappe.whitelist()
